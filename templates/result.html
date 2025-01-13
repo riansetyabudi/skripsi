@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hasil Deteksi</title>
+</head>
+<body>
+    <h1>Hasil Deteksi Kendaraan</h1>
+    <p>Jumlah Mobil: {{ car_count }}</p>
+    <p>Jumlah Motor: {{ bike_count }}</p>
+
+    <h2>Video Deteksi:</h2>
+    <video width="720" controls>
+        <source src="{{ url_for('uploaded_file', filename=filename) }}" type="video/mp4">
+        Browser Anda tidak mendukung pemutaran video.
+    </video>
+
+    <a href="{{ url_for('index') }}">Kembali ke Beranda</a>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hasil Pengujian</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/output.css') }}">
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+    <!-- Navbar -->
+    <nav class="bg-blue-700 text-white shadow-md">
+        <div class="container mx-auto flex items-center justify-between px-4 py-3">
+            <!-- Logo dan Judul -->
+            <a href="/" class="flex items-center">
+                <img src="https://flowbite.com/docs/images/logo.svg" class="h-8 mr-3" alt="Flowbite Logo">
+                <span class="text-xl font-bold">Deteksi Kendaraan</span>
+            </a>
+            <!-- Tombol Menu -->
+            <div class="flex space-x-4">
+                <a href="/" class="text-white hover:bg-blue-500 px-4 py-2 rounded-md transition duration-200">
+                    Dashboard
+                </a>
+                <a href="{{ url_for('upload_video') }}"
+                    class="text-white hover:bg-blue-500 px-4 py-2 rounded-md transition duration-200">
+                    Upload Video
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container mx-auto p-6">
+        <h1 class="text-2xl font-bold text-center text-gray-900 mb-6">Hasil Pengujian</h1>
+
+        <!-- File Video Section -->
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">File Video</h2>
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <p class="text-gray-700">Nama File: <span class="font-semibold">{{ data['video_name'] }}</span></p>
+            </div>
+        </section>
+
+        <!-- Input Manual Section -->
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Input Jumlah Manual</h2>
+            <form method="POST" class="bg-white p-4 rounded-lg shadow-md">
+                <div class="mb-4">
+                    <label for="manual_car_count" class="block font-medium mb-2">Jumlah Mobil (Manual)</label>
+                    <input type="number" name="manual_car_count" id="manual_car_count"
+                        class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        required>
+                </div>
+                <div class="mb-4">
+                    <label for="manual_bike_count" class="block font-medium mb-2">Jumlah Motor (Manual)</label>
+                    <input type="number" name="manual_bike_count" id="manual_bike_count"
+                        class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        required>
+                </div>
+                <button type="submit"
+                    class="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-4 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                    Simpan dan hitung
+                </button>
+            </form>
+        </section>
+
+        <!-- Perbandingan Hasil Section -->
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Perbandingan Hasil</h2>
+            <div class="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-700">
+                            <th class="px-4 py-2 border">Jenis</th>
+                            <th class="px-4 py-2 border">Hasil Perhitungan Sistem</th>
+                            <th class="px-4 py-2 border">Hasil Perhitungan Manual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="px-4 py-2 border">Mobil</td>
+                            <td class="px-4 py-2 border">{{ data['car_count'] if data else 'Tidak tersedia' }}</td>
+                            <td class="px-4 py-2 border">{{ data['manual_car_count'] if data else 'Tidak tersedia' }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2 border">Motor</td>
+                            <td class="px-4 py-2 border">{{ data['bike_count'] if data else 'Tidak tersedia' }}</td>
+                            <td class="px-4 py-2 border">{{ data['manual_bike_count'] if data else 'Tidak tersedia' }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Evaluasi Metrik Section -->
+        {% if data and data['evaluation'] %}
+        <section class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Evaluasi Metrik</h2>
+            <div class="bg-white p-4 rounded-lg shadow-md overflow-x-auto">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-700">
+                            <th class="px-4 py-2 border">Metrik</th>
+                            <th class="px-4 py-2 border">Mobil</th>
+                            <th class="px-4 py-2 border">Motor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="px-4 py-2 border">Akurasi</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['accuracy_car'] }} %</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['accuracy_bike'] }} %</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2 border">Presisi</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['precision_car'] }}</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['precision_bike'] }}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2 border">Recall</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['recall_car'] }}</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['recall_bike'] }}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2 border">F1 Score</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['f1_car'] }}</td>
+                            <td class="px-4 py-2 border">{{ data['evaluation']['f1_bike'] }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% else %}
+        <p class="text-center text-gray-600">Data evaluasi belum tersedia.</p>
+        {% endif %}
+    </div>
+</body>
+
+</html>

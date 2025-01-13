@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Dashboard Deteksi Kendaraan - Upload Video</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/output.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100">
+    <!-- Navbar -->
+    <nav class="bg-blue-700 text-white px-4 sm:px-6 py-3 shadow-md">
+        <div class="container flex flex-wrap items-center justify-between mx-auto">
+            <a href="/" class="flex items-center">
+                <img src="https://flowbite.com/docs/images/logo.svg" class="h-8 mr-3" alt="Flowbite Logo">
+                <span class="self-center text-xl font-semibold dark:text-white">Dashboard Deteksi Kendaraan</span>
+            </a>
+            <div class="flex space-x-4">
+                <!-- About -->
+                <a href="#" onclick="openModal('aboutModal')" class="hover:underline font-medium px-3 py-2">About</a>
+
+                <!-- Contact -->
+                <a href="#" onclick="openModal('contactModal')"
+                    class="hover:underline font-medium px-3 py-2">Contact</a>
+            </div>
+
+            <!-- Modal for About -->
+            <div id="aboutModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden justify-center items-center">
+                <div class="bg-white rounded-lg shadow-lg border border-gray-300 p-6 w-1/2">
+                    <h2 class="text-gray-900">About This Program</h2>
+                    <p class="text-gray-700">Program ini digunakan untuk mendeteksi kendaraan bermotor pada video yang
+                        diunggah
+                        pengguna. Dikembangkan dengan Flask dan Haar Cascade.</p>
+                    <button onclick="closeModal('aboutModal')" class="text-gray-700">Close</button>
+                </div>
+            </div>
+
+            <!-- Modal for Contact -->
+            <div id="contactModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden justify-center items-center">
+                <div class="bg-white rounded-lg shadow-lg p-6 w-1/2">
+                    <h2 class="text-gray-900">Contact Information</h2>
+                    <p class="text-gray-700">Email: riansbudi19@gmail.com</p>
+                    <button onclick="closeModal('contactModal')" class="text-gray-700">Close</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto grid grid-cols-12 gap-6 mt-8">
+        <!-- Sidebar -->
+        <aside class="col-span-3 bg-white rounded-lg shadow-lg p-6 dark:bg-gray-800">
+            <h2 class="text-lg font-bold text-gray-700 mb-4 dark:text-white">Menu</h2>
+            <nav>
+                <ul class="space-y-4">
+                    <!-- Home -->
+                    <li>
+                        <a href="/"
+                            class="flex items-center text-blue-700 bg-blue-100 py-2 px-4 rounded-lg dark:bg-gray-700 dark:text-blue-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 10l9-7 9 7v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 21V12h6v9" />
+                            </svg>
+                            Home
+                        </a>
+                    </li>
+                    <!-- Upload Video -->
+                    <li>
+                        <a href="{{ url_for('upload_video') }}"
+                            class="flex items-center text-gray-700 hover:bg-blue-100 py-2 px-4 rounded-lg dark:text-gray-300 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v4a1 1 0 001 1h14a1 1 0 001-1v-4m-3-5l-5-5m0 0L7 11m5-5v12" />
+                            </svg>
+                            Upload Video
+                        </a>
+                    </li>
+                    <!-- Hasil Deteksi -->
+                    <li>
+                        <a href="{{ url_for('hasil_deteksi', filename='') }}"
+                            class="flex items-center text-gray-700 hover:bg-blue-100 py-2 px-4 rounded-lg dark:text-gray-300 dark:hover:bg-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2a4 4 0 014-4h3m-7 6h6a4 4 0 100-8H9a4 4 0 00-4 4v2a4 4 0 014 4zm-4 0a4 4 0 00-4-4" />
+                            </svg>
+                            Hasil Deteksi
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Content -->
+        <main class="col-span-9 bg-white rounded-lg shadow-md p-6 dark:bg-gray-800">
+            <h1 class="text-2xl font-bold text-gray-700 mb-4 dark:text-white">Upload Video untuk Deteksi Kendaraan</h1>
+            <p class="text-gray-600 mb-4 dark:text-gray-400">
+                Pilih video untuk diunggah dan dideteksi.
+            </p>
+            <form action="/upload" method="POST" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label for="video" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih
+                        Video</label>
+                    <input type="file" id="video" name="video" accept="video/*"
+                        class="block w-full mt-1 text-sm text-gray-700 border rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-300">
+                </div>
+                <button type="submit"
+                    class="px-5 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700">
+                    Upload
+                </button>
+            </form>
+
+            {% if filename %}
+            <div class="mt-6">
+                <h2 class="text-xl font-semibold text-gray-700 dark:text-white">Streaming Video:</h2>
+                <p class="text-gray-700 font-medium dark:text-gray-300">{{ filename }}</p>
+                <div class="mt-4">
+                    <img id="videoPlayer" class="w-full max-h-96 object-cover rounded-lg"
+                        src="{{ url_for('detect_stream', filename=filename) }}" alt="Deteksi Video">
+                </div>
+                <div class="flex space-x-4 mt-4">
+                    <button onclick="playVideo()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Play</button>
+                    <button onclick="pauseVideo()"
+                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">Pause</button>
+                    <button onclick="stopVideo()"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Stop</button>
+                    <button onclick="fastForward()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Fast Forward</button>
+                </div>
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Kartu Statistik Mobil -->
+                    <div
+                        class="bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-car-side fa-2x text-blue-500"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-lg font-semibold">Mobil Terhitung</p>
+                                <p class="text-2xl font-bold" id="carCount">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Kartu Statistik Motor -->
+                    <div
+                        class="bg-green-50 border-l-4 border-green-500 text-green-700 p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-motorcycle fa-2x text-green-500"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-lg font-semibold">Motor Terhitung</p>
+                                <p class="text-2xl font-bold" id="bikeCount">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('hasil_deteksi', filename=filename) }}"
+                    class="mt-4 inline-block px-5 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700">
+                    Lihat Hasil Deteksi
+                </a>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoPlayer');
+
+        function playVideo() {
+            if (video.paused) {
+                video.play().catch(error => console.log(error));
+            }
+        }
+
+        function pauseVideo() {
+            if (!video.paused) {
+                video.pause();
+            }
+        }
+
+        function stopVideo() {
+            video.pause();
+            video.currentTime = 0;
+        }
+
+        function fastForward() {
+            video.currentTime += 5;
+        }
+
+        function updateVehicleCount() {
+            fetch('/vehicle_count')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('carCount').innerText = data.car_count;
+                    document.getElementById('bikeCount').innerText = data.bike_count;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        setInterval(updateVehicleCount, 2000);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+
+    <script>
+        // Function to open a modal
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+            document.getElementById(modalId).classList.add('flex');
+        }
+
+        // Function to close a modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('flex');
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
+
+
+</body>
+
+</html>
