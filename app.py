@@ -5,6 +5,7 @@ from time import sleep
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from werkzeug.utils import secure_filename
 from flask import jsonify
+from supabase_util import upload_video_file
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -71,40 +72,75 @@ def allowed_file(filename):
 def home():
     return render_template('home.html')
 
+# Fungsi untuk memeriksa format file
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_video():
-    global car_count, bike_count
-    car_count, bike_count = 0, 0
+    print("Sudah masuk di fungsi upload")
     if request.method == 'POST':
         if 'video' not in request.files:
             flash('Tidak ada file video!')
             return redirect(url_for('upload_video'))
+
         file = request.files['video']
         if file and allowed_file(file.filename):
+            print("file sudah ada")
             filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return render_template('upload_video.html', filename=filename)
+            
+            # Simpan file sementara di direktori lokal
+            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(temp_path)
+            
+            # Upload ke Supabase
+            storage_bucket = "videos"  # Ganti dengan nama bucket di Supabase
+            destination_path = f"videos/{filename}"  # Lokasi di Supabase Storage
+            with open(temp_path, "rb") as f:
+                supabase_response = upload_video_file(f, storage_bucket, destination_path)
+            
+            if hasattr(supabase_response, 'error'):
+                flash(f"Upload ke Supabase gagal: {supabase_response['error']}")
+                print(f"error upload : {supabase_response['error']}")
+                return redirect(url_for('upload_video'))
+
+            print(f"upload sukses, mendapatkan url")
+            # Hapus file sementara setelah berhasil diunggah
+            os.remove(temp_path)
+            
+            # Tampilkan URL file yang diunggah
+            file_url = supabase_response.get("file_url")
+            print(f"Uploading file: {filename}")
+            print(f"file path: {file_url}")
+
+            return render_template('upload_video.html', filename=filename, file_url=file_url)
+        
         else:
             flash('Format file tidak didukung!')
             return redirect(url_for('upload_video'))
     return render_template('upload_video.html')
 
-@app.route('/detect_stream/<filename>')
-def detect_stream(filename):
-    video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if not os.path.isfile(video_path):
-        return "File tidak ditemukan", 404
-    return Response(detect_and_stream(video_path), mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/detect_stream/<path:fileurl>')
+def detect_stream(fileurl):
+    try:
+        return Response(detect_and_stream(fileurl), 
+                       mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        print(f"Error in detect_stream: {str(e)}")  # Debug log
+        return str(e), 500
 
 # Fungsi untuk mendeteksi dan melacak kendaraan
-def detect_and_stream(video_path):
+def detect_and_stream(fileurl):
+    print("masuk ke detek stream")
     global car_count, bike_count
     car_count, bike_count = 0, 0
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(fileurl, cv2.CAP_FFMPEG)
+    
     if not cap.isOpened():
         print("Error: Tidak dapat membuka video.")
         return
 
+    print("bisa dibuka")
     roi_top, roi_bottom = 200, 550
     pos_line = 120
     offset = 5

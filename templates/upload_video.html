@@ -122,19 +122,13 @@
                 <h2 class="text-xl font-semibold text-gray-700 dark:text-white">Streaming Video:</h2>
                 <p class="text-gray-700 font-medium dark:text-gray-300">{{ filename }}</p>
                 <div class="mt-4">
+                    {% if file_url %}
                     <img id="videoPlayer" class="w-full max-h-96 object-cover rounded-lg"
-                        src="{{ url_for('detect_stream', filename=filename) }}" alt="Deteksi Video">
-                </div>
-                <div class="flex space-x-4 mt-4">
-                    <button onclick="playVideo()"
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Play</button>
-                    <button onclick="pauseVideo()"
-                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">Pause</button>
-                    <button onclick="stopVideo()"
-                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Stop</button>
-                    <button onclick="fastForward()"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Fast Forward</button>
-                </div>
+                        src="{{ url_for('detect_stream', fileurl=file_url) }}" alt="Deteksi video">
+                    </img>
+                    {% endif %}
+                    </div>
+                
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Kartu Statistik Mobil -->
                     <div
