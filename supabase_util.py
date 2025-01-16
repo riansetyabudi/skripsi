@@ -7,8 +7,6 @@ load_dotenv()
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
-print(f"SUPABASE_URL: {url}")
-print(f"SUPABASE_KEY: {key}")
 
 
 supabase: Client = create_client(url, key)
@@ -16,7 +14,6 @@ supabase: Client = create_client(url, key)
 # Fungsi untuk upload video ke Supabase Storage dengan cek keberadaan file
 def upload_to_supabase(file, storage_bucket, destination_path):
     print(f"Starting upload for {destination_path}...")
-    print(f"File type: {type(file)}")
 
     try:
         # Cek apakah file sudah ada di storage
