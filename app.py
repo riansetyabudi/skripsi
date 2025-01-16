@@ -1,24 +1,41 @@
 import os
 import cv2
-import math
 from time import sleep
-from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, flash, Response
+from whatsapp_notification import send_whatsapp_notification
+import sqlite3
+import webbrowser
+from pkg import entities, config, database
+import pkg 
 from werkzeug.utils import secure_filename
 from flask import jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from supabase_util import upload_video_file
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 # Inisialisasi Flask
 app = Flask(__name__)
+
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'mp4', 'avi', 'mov'}
 app.secret_key = 'your_secret_key'
+app.config['SQLALCHEMY_DATABASE_URI'] = pkg.config.Config.SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(pkg.config.Config)
 
 # Load Cascade Classifiers
 car_cascade = cv2.CascadeClassifier('models/cascade.xml')
 bike_cascade = cv2.CascadeClassifier('models/motor2.xml')
 
 car_count, bike_count = 0, 0  # Variabel untuk counting kendaraan
+
+db = SQLAlchemy()
+db.init_app(app)
+
+migrate = Migrate(app=app, db=db)
 
 def get_video_duration(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -205,6 +222,164 @@ def hasil_deteksi(filename):
     }
     return render_template('hasil_deteksi.html', data=data)
 
+
+# Simpan log deteksi di sini (sebagai list untuk sementara)
+log_deteksi = []
+
+def save_detection(video_name, car_count, bike_count):
+    # Menghitung total kendaraan (mobil + motor)
+    total_count = sum([int(car_count), int(bike_count)])
+
+    try:
+        # Menyimpan ke database
+        detection = entities.Detection(
+            video_name=video_name,
+            car_amount=car_count,
+            bike_count=bike_count,
+            total_count=total_count)
+        db.session.add(detection)
+
+        # Commit untuk menyimpan data
+        db.session.commit()
+        print("Berhasil simpan di mysql")
+
+        # Flash message berhasil
+        flash('Deteksi berhasil disimpan!', 'success')
+        print('Deteksi berhasil disimpan!')
+    except Exception as e:
+        db.session.rollback()  # Jika ada kesalahan, rollback
+
+@app.route('/simpan_hasil', methods=['POST'])
+def simpan_hasil():
+    # Data dikirim dari halaman hasil_deteksi.html
+    data = request.json
+    video_name = data.get('filename')
+    car_count = data.get('car_count')
+    bike_count = data.get('bike_count')
+    
+    # Menghitung total kendaraan (mobil + motor)
+    total_count = sum([int(car_count), int(bike_count)])
+
+    try:
+        # Menyimpan ke database
+        detection = entities.Detection(
+            video_name=video_name,
+            car_amount=car_count,
+            bike_amount=bike_count,
+            total_amount=total_count)
+        db.session.add(detection)
+
+        print("Berhasil simpan di mysql")
+        # Commit untuk menyimpan data
+        db.session.commit()
+        print("Berhasil simpan di mysql")
+
+        # Flash message berhasil
+        flash('Deteksi berhasil disimpan!', 'success')
+        print('Deteksi berhasil disimpan!')
+    except Exception as e:
+        print(f'Deteksi tidak berhasil disimpan! : {e}')
+        db.session.rollback()  # Jika ada kesalahan, rollback
+
+    return jsonify({'message': 'Data berhasil disimpan'})
+
+@app.route('/log_deteksi')
+def log_deteksi_page():
+    # Query semua data dari tabel detections
+    detections = entities.Detection.query.all()
+
+    # Konversi setiap objek hasil query menjadi dictionary menggunakan metode to_dict()
+    detections_list = [detection.to_dict() for detection in detections]
+
+    # Kirim data ke template untuk ditampilkan
+    return render_template('log_deteksi.html', logs=detections_list)
+
+@app.route('/get_results', methods=['GET'])
+def get_results():
+    conn = sqlite3.connect('hasil_deteksi.db')
+    cursor = conn.execute('SELECT * FROM hasil_deteksi')
+    results = [
+        {'id': row[0], 'video_name': row[1], 'car_count': row[2], 'bike_count': row[3], 'total_count': row[4]}
+        for row in cursor
+    ]
+    conn.close()
+    return jsonify(results)
+
+
+#Untuk edit pada halaman Log
+@app.route('/edit_log/<int:log_id>', methods=['GET', 'POST'])
+def edit_log(log_id):
+    # Mengambil data log berdasarkan ID
+    conn = sqlite3.connect('hasil_deteksi.db')
+    cursor = conn.execute('SELECT * FROM hasil_deteksi WHERE id = ?', (log_id,))
+    log = cursor.fetchone()
+    conn.close()
+
+    if not log:
+        return "Log not found", 404
+
+    if request.method == 'POST':
+        # Ambil data baru dari form
+        video_name = request.form['video_name']
+        car_count = int(request.form['car_count'])
+        bike_count = int(request.form['bike_count'])
+        total_count = car_count + bike_count
+        
+        # Update data log di database
+        conn = sqlite3.connect('hasil_deteksi.db')
+        conn.execute('''
+        UPDATE hasil_deteksi
+        SET video_name = ?, car_count = ?, bike_count = ?, total_count = ?
+        WHERE id = ?
+        ''', (video_name, car_count, bike_count, total_count, log_id))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('log_deteksi_page'))
+
+    return render_template('edit_log.html', log=log)
+
+# Untuk Hapus pada halaman Log
+@app.route('/delete_log/<int:log_id>', methods=['GET'])
+def delete_log(log_id):
+    # Hapus data log berdasarkan ID
+    conn = sqlite3.connect('hasil_deteksi.db')
+    conn.execute('DELETE FROM hasil_deteksi WHERE id = ?', (log_id,))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('log_deteksi_page'))
+
+def send_whatsapp_notification(total_vehicles):
+    message = f"Peringatan: Lalu lintas tinggi! Total kendaraan: {total_vehicles}."
+    phone_number = "6281249304189"  # nomor tujuan
+    encoded_message = message.replace(" ", "%20")
+    url = f"https://api.whatsapp.com/send?phone={phone_number}&text={encoded_message}"
+
+    try:
+        webbrowser.open(url)  # Membuka URL di browser
+        print("Pesan WhatsApp berhasil dibuka di browser.")
+    except Exception as e:
+        print(f"Error membuka WhatsApp Web: {e}")
+
+
+@app.route('/detect_traffic', methods=['POST'])
+def detect_traffic():
+    total_vehicles = request.json.get('total_vehicles', 0)
+    warning_message = None
+
+    print(f"Total kendaraan diterima: {total_vehicles}")  # Debug log
+
+    if total_vehicles > 100:
+        warning_message = "Lalu lintas sedang tinggi! Jumlah kendaraan lebih dari 100."
+        print("Mengirim notifikasi WhatsApp...")  # Debug log
+        send_whatsapp_notification(total_vehicles)
+
+    return jsonify({
+        "total_vehicles": total_vehicles,
+        "warning_message": warning_message
+    })
+
 @app.route('/hasil_pengujian', methods=['GET', 'POST'])
 def hasil_pengujian():
         
@@ -255,5 +430,7 @@ def hasil_pengujian():
     return render_template('hasil_pengujian.html', filename=filename, data=data)
 
 if __name__ == '__main__':
+    database.init_db_connection()
+
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     app.run(debug=True)
