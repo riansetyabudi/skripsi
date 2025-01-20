@@ -94,6 +94,19 @@
                             Hasil Deteksi
                         </a>
                     </li>
+                    <!-- Log Deteksi -->
+                    <li>
+                        <a href="{{ url_for('log_deteksi_page') }}"
+                            class="flex items-center text-gray-700 hover:bg-blue-100 py-2 px-4 rounded-lg dark:text-gray-300 dark:hover:bg-gray-700 group">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5 mr-3 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 17v-2a4 4 0 014-4h3m-7 6h6a4 4 0 100-8H9a4 4 0 00-4 4v2a4 4 0 014 4zm-4 0a4 4 0 00-4-4" />
+                            </svg>
+                            Log Deteksi
+                        </a>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -122,19 +135,13 @@
                 <h2 class="text-xl font-semibold text-gray-700 dark:text-white">Streaming Video:</h2>
                 <p class="text-gray-700 font-medium dark:text-gray-300">{{ filename }}</p>
                 <div class="mt-4">
+                    {% if file_url %}
                     <img id="videoPlayer" class="w-full max-h-96 object-cover rounded-lg"
-                        src="{{ url_for('detect_stream', filename=filename) }}" alt="Deteksi Video">
-                </div>
-                <div class="flex space-x-4 mt-4">
-                    <button onclick="playVideo()"
-                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Play</button>
-                    <button onclick="pauseVideo()"
-                        class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">Pause</button>
-                    <button onclick="stopVideo()"
-                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Stop</button>
-                    <button onclick="fastForward()"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Fast Forward</button>
-                </div>
+                        src="{{ url_for('detect_stream', fileurl=file_url) }}" alt="Deteksi video">
+                    </img>
+                    {% endif %}
+                    </div>
+                
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Kartu Statistik Mobil -->
                     <div
@@ -163,6 +170,10 @@
                             </div>
                         </div>
                     </div>
+                <div id="trafficStatus" class="p-4 mt-4 rounded-lg shadow-md hidden">
+                    <h3 class="text-lg font-semibold" id="trafficStatusText">Status Lalu Lintas:</h3>
+                </div>
+
                 </div>
 
                 <a href="{{ url_for('hasil_deteksi', filename=filename) }}"
@@ -176,27 +187,6 @@
 
     <script>
         const video = document.getElementById('videoPlayer');
-
-        function playVideo() {
-            if (video.paused) {
-                video.play().catch(error => console.log(error));
-            }
-        }
-
-        function pauseVideo() {
-            if (!video.paused) {
-                video.pause();
-            }
-        }
-
-        function stopVideo() {
-            video.pause();
-            video.currentTime = 0;
-        }
-
-        function fastForward() {
-            video.currentTime += 5;
-        }
 
         function updateVehicleCount() {
             fetch('/vehicle_count')
@@ -223,8 +213,75 @@
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('flex');
             document.getElementById(modalId).classList.add('hidden');
-        }
+        }    
     </script>
+
+<script>
+    let totalVehicles = 0; // Variabel untuk menyimpan total kendaraan
+    let resetInterval = 30000; // Waktu reset dalam milidetik (30 detik)
+
+    function updateTrafficStatus() {
+        fetch('/traffic_status')
+            .then(response => response.json())
+            .then(data => {
+                const trafficStatusDiv = document.getElementById('trafficStatus');
+                const trafficStatusText = document.getElementById('trafficStatusText');
+
+                // Perbarui total kendaraan
+                totalVehicles = data.total_vehicles;
+
+                if (totalVehicles > 0) {
+                    trafficStatusDiv.classList.remove('hidden');
+                    trafficStatusText.innerText = `Status Lalu Lintas: ${data.status} (${totalVehicles} kendaraan terdeteksi)`;
+
+                    // Tambahkan kelas warna berdasarkan status
+                    if (data.status === "Ramai") {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-red-100 text-red-700";
+                    } else if (data.status === "Lancar") {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-yellow-100 text-yellow-700";
+                    } else {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-green-100 text-green-700";
+                    }
+                } else {
+                    trafficStatusDiv.classList.add('hidden');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    // Fungsi untuk mereset hitungan kendaraan
+    function resetTrafficStatus() {
+        fetch('/reset_traffic', {
+            method: 'POST'
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.message);
+
+                const trafficStatusDiv = document.getElementById('trafficStatus');
+                const trafficStatusText = document.getElementById('trafficStatusText');
+
+                // Sembunyikan status lalu lintas
+                if (trafficStatusDiv) {
+                    trafficStatusDiv.classList.add('hidden');
+                }
+
+                // Kosongkan teks status lalu lintas
+                if (trafficStatusText) {
+                    trafficStatusText.innerText = '';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+
+    // Perbarui status lalu lintas setiap 2 detik
+    setInterval(updateTrafficStatus, 2000);
+
+    // Reset hitungan kendaraan setiap 1 menit
+    setInterval(resetTrafficStatus, 60000);
+
+</script>
 
 
 </body>

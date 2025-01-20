@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Log Deteksi</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/output.css') }}">
+</head>
+
+<body>
+    <nav class="bg-blue-700 text-white shadow-md">
+        <div class="container mx-auto flex items-center justify-between px-4 py-3">
+            <a href="/" class="flex items-center">
+                <img src="https://flowbite.com/docs/images/logo.svg" class="h-8 mr-3" alt="Flowbite Logo">
+                <span class="text-xl font-bold">Deteksi Kendaraan</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4">
+        <h1 class="text-2xl font-bold mb-4 text-center text-gray-900">Edit Log Deteksi</h1>
+        <form method="POST">
+            <div class="mb-4">
+                <label for="video_name" class="block text-sm font-medium text-gray-700">Nama Video</label>
+                <input type="text" name="video_name" value="{{ log[1] }}"
+                    class="mt-1 block w-full border-gray-300 rounded-md" required>
+            </div>
+            <div class="mb-4">
+                <label for="car_count" class="block text-sm font-medium text-gray-700">Jumlah Mobil</label>
+                <input type="number" name="car_count" value="{{ log[2] }}"
+                    class="mt-1 block w-full border-gray-300 rounded-md" required>
+            </div>
+            <div class="mb-4">
+                <label for="bike_count" class="block text-sm font-medium text-gray-700">Jumlah Motor</label>
+                <input type="number" name="bike_count" value="{{ log[3] }}"
+                    class="mt-1 block w-full border-gray-300 rounded-md" required>
+            </div>
+            <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded-md">Update Log</button>
+        </form>
+    </div>
+</body>
+
+</html>

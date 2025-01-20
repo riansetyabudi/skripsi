@@ -1,10 +1,13 @@
 import os
 import cv2
-import math
-from time import sleep
+from datetime import datetime
+import time
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
+import sqlite3
+from telegramNotification import send_telegram_message
 from werkzeug.utils import secure_filename
 from flask import jsonify
+from supabase_util import upload_video_file
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -71,36 +74,73 @@ def allowed_file(filename):
 def home():
     return render_template('home.html')
 
+# Fungsi untuk memeriksa format file
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_video():
-    global car_count, bike_count
-    car_count, bike_count = 0, 0
+    print("Sudah masuk di fungsi upload")
     if request.method == 'POST':
         if 'video' not in request.files:
             flash('Tidak ada file video!')
             return redirect(url_for('upload_video'))
+
         file = request.files['video']
         if file and allowed_file(file.filename):
+            print("file sudah ada")
             filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return render_template('upload_video.html', filename=filename)
+            
+            # Simpan file sementara di direktori lokal
+            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(temp_path)
+            
+            # Upload ke Supabase
+            storage_bucket = "videos"  # Ganti dengan nama bucket di Supabase
+            destination_path = f"videos/{filename}"  # Lokasi di Supabase Storage
+            with open(temp_path, "rb") as f:
+                supabase_response = upload_video_file(f, storage_bucket, destination_path)
+            
+            if hasattr(supabase_response, 'error'):
+                flash(f"Upload ke Supabase gagal: {supabase_response['error']}")
+                print(f"error upload : {supabase_response['error']}")
+                return redirect(url_for('upload_video'))
+
+            print(f"upload sukses, mendapatkan url")
+            # Hapus file sementara setelah berhasil diunggah
+            os.remove(temp_path)
+            
+            # Tampilkan URL file yang diunggah
+            file_url = supabase_response.get("file_url")
+            print(f"Uploading file: {filename}")
+            print(f"file path: {file_url}")
+
+            return render_template('upload_video.html', filename=filename, file_url=file_url)
+        
         else:
             flash('Format file tidak didukung!')
             return redirect(url_for('upload_video'))
     return render_template('upload_video.html')
 
-@app.route('/detect_stream/<filename>')
-def detect_stream(filename):
-    video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if not os.path.isfile(video_path):
-        return "File tidak ditemukan", 404
-    return Response(detect_and_stream(video_path), mimetype='multipart/x-mixed-replace; boundary=frame')
+last_check_time = time.time()
+vehicle_count_last_check = 0
+
+@app.route('/detect_stream/<path:fileurl>')
+def detect_stream(fileurl):
+    try:
+        return Response(detect_and_stream(fileurl), 
+                       mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        print(f"Error in detect_stream: {str(e)}")  # Debug log
+        return str(e), 500
 
 # Fungsi untuk mendeteksi dan melacak kendaraan
-def detect_and_stream(video_path):
-    global car_count, bike_count
+def detect_and_stream(fileurl):
+    global car_count, bike_count, last_check_time, vehicle_count_last_check
     car_count, bike_count = 0, 0
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(fileurl, cv2.CAP_FFMPEG)
+    
     if not cap.isOpened():
         print("Error: Tidak dapat membuka video.")
         return
@@ -108,8 +148,8 @@ def detect_and_stream(video_path):
     roi_top, roi_bottom = 200, 550
     pos_line = 120
     offset = 5
-    cars_kf = []  # Daftar Kalman Filter untuk mobil
-    bikes_kf = []  # Daftar Kalman Filter untuk motor
+    cars_kf = []  # Kalman Filter untuk mobil
+    bikes_kf = []  # Kalman Filter untuk motor
 
     def center_object(x, y, w, h):
         return np.array([[x + w // 2], [y + h // 2]], np.float32)
@@ -136,7 +176,7 @@ def detect_and_stream(video_path):
             measurement = center_object(x, y, w, h)
             matched = False
 
-            # Gambarkan bounding box untuk mobil
+            # Gambar bounding box untuk mobil
             cv2.rectangle(img, (x, y + roi_top), (x + w, y + h + roi_top), (0, 0, 255), 2)
             cv2.putText(img, "Mobil", (x, y + roi_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
@@ -181,6 +221,24 @@ def detect_and_stream(video_path):
         for kf in cars_kf + bikes_kf:
             kf.predict()
 
+        # Cek setiap 60 detik untuk kirim peringatan
+        current_time = time.time()
+        if current_time - last_check_time >= 60:
+            total_vehicle_count = car_count + bike_count
+            if total_vehicle_count > 50:
+                message = f"Peringatan! Kondisi Lalu Lintas di Jl. Basuki Rahmat, Ramai: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+            elif 30 <= total_vehicle_count <= 50:
+                message = f"Kondisi Lalu Lintas di Jl. Basuki Rahmat, Biasa: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+            else:
+                message = f"Kondisi Lalu Lintas di Jl. Basuki Rahmat, Sepi: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+
+            # Reset hitungan kendaraan dan waktu pemeriksaan
+            last_check_time = current_time
+            vehicle_count_last_check = total_vehicle_count
+
         # Visualisasi hasil deteksi
         cv2.putText(img, f"Mobil: {car_count}", (450, 650), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         cv2.putText(img, f"Motor: {bike_count}", (650, 650), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
@@ -192,18 +250,161 @@ def detect_and_stream(video_path):
 
     cap.release()
 
+@app.route('/traffic_status', methods=['GET'])
+def traffic_status():
+    global car_count, bike_count
+    total_vehicles = car_count + bike_count
+    # Tentukan kondisi berdasarkan jumlah kendaraan
+    if total_vehicles > 50:  # ramai jika lebih dari 50 kendaraan
+        status = "Ramai"
+    elif 30 <= total_vehicles <= 50:  # lancar untuk 30-50 kendaraan
+        status = "Lancar"
+    else:  # sepi jika kurang dari 30 kendaraan
+        status = "Sepi"
+    
+    return jsonify({
+        "total_vehicles": total_vehicles,
+        "status": status
+    })
+
+
 @app.route('/hasil_deteksi/<filename>')
 def hasil_deteksi(filename):
     global car_count, bike_count
     video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
+    # Hitung total kendaraan
+    total_count = car_count + bike_count
+    warning_message = None
+
+    # muncul peringatan di halaman Hasil deteksi
+    if total_count > 100:
+        warning_message = "Kondisi Lalu lintas sedang tinggi! Jumlah kendaraan lebih dari 100 yang lewat di Jl. Basuki Rahmat" 
+    else:
+        warning_message = f"Kondisi Lalu lintas sedang normal, terdeteksi {total_count} kendaraan di Jl. Basuki Rahmat."
+       
     # Data untuk frontend
     data = {
         'car_count': car_count,
         'bike_count': bike_count,
-        'video_name': filename
+        'video_name': filename,
+        'warning_message': warning_message
     }
     return render_template('hasil_deteksi.html', data=data)
+
+
+# Simpan log deteksi di sini (sebagai list untuk sementara)
+log_deteksi = []
+
+def save_detection(video_name, car_count, bike_count):
+    # Menghitung total kendaraan (mobil + motor)
+    total_count = sum([int(car_count), int(bike_count)])
+
+    print(f"Calculated Total Count: {total_count}")
+    
+    # Mendapatkan waktu sekarang
+    created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Membuka koneksi ke database SQLite (database bernama 'hasil_deteksi.db')
+    conn = sqlite3.connect('hasil_deteksi.db')
+    
+    # Menyimpan data ke tabel 'hasil_deteksi'
+    conn.execute('''
+    INSERT INTO hasil_deteksi (video_name, car_count, bike_count, total_count, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ''', (video_name, car_count, bike_count, total_count, created_at))
+    
+    # Menyimpan perubahan ke database
+    conn.commit()
+    print("Data berhasil disimpan ke database")
+    # Menutup koneksi ke database
+    conn.close()
+
+@app.route('/simpan_hasil', methods=['POST'])
+def simpan_hasil():
+    # Data dikirim dari halaman hasil_deteksi.html
+    data = request.json
+    video_name = data.get('filename')
+    car_count = data.get('car_count')
+    bike_count = data.get('bike_count')
+    
+    # Simpan hasil ke database SQLite
+    save_detection(video_name, car_count, bike_count)
+
+    return jsonify({'message': 'Data berhasil disimpan'})
+
+@app.route('/log_deteksi')
+def log_deteksi_page():
+    # Membuka koneksi ke database SQLite
+    conn = sqlite3.connect('hasil_deteksi.db')
+    
+    # Mengambil semua data dari tabel 'hasil_deteksi'
+    cursor = conn.execute('SELECT * FROM hasil_deteksi')
+    logs = [
+        {'id': row[0],'video_name': row[1], 'car_count': row[2], 'bike_count': row[3], 'total_count': row[4], 'created_at': row[5]}
+        for row in cursor
+    ]
+    
+    # Menutup koneksi ke database
+    conn.close()
+
+    return render_template('log_deteksi.html', logs=logs)
+
+@app.route('/get_results', methods=['GET'])
+def get_results():
+    conn = sqlite3.connect('hasil_deteksi.db')
+    cursor = conn.execute('SELECT * FROM hasil_deteksi')
+    results = [
+        {'id': row[0], 'video_name': row[1], 'car_count': row[2], 'bike_count': row[3], 'total_count': row[4]}
+        for row in cursor
+    ]
+    conn.close()
+    return jsonify(results)
+
+
+#Untuk edit pada halaman Log
+@app.route('/edit_log/<int:log_id>', methods=['GET', 'POST'])
+def edit_log(log_id):
+    # Mengambil data log berdasarkan ID
+    conn = sqlite3.connect('hasil_deteksi.db')
+    cursor = conn.execute('SELECT * FROM hasil_deteksi WHERE id = ?', (log_id,))
+    log = cursor.fetchone()
+    conn.close()
+
+    if not log:
+        return "Log not found", 404
+
+    if request.method == 'POST':
+        # Ambil data baru dari form
+        video_name = request.form['video_name']
+        car_count = int(request.form['car_count'])
+        bike_count = int(request.form['bike_count'])
+        total_count = car_count + bike_count
+        
+        # Update data log di database
+        conn = sqlite3.connect('hasil_deteksi.db')
+        conn.execute('''
+        UPDATE hasil_deteksi
+        SET video_name = ?, car_count = ?, bike_count = ?, total_count = ?
+        WHERE id = ?
+        ''', (video_name, car_count, bike_count, total_count, log_id))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('log_deteksi_page'))
+
+    return render_template('edit_log.html', log=log)
+
+# Untuk Hapus pada halaman Log
+@app.route('/delete_log/<int:log_id>', methods=['GET'])
+def delete_log(log_id):
+    # Hapus data log berdasarkan ID
+    conn = sqlite3.connect('hasil_deteksi.db')
+    conn.execute('DELETE FROM hasil_deteksi WHERE id = ?', (log_id,))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('log_deteksi_page'))
 
 @app.route('/hasil_pengujian', methods=['GET', 'POST'])
 def hasil_pengujian():

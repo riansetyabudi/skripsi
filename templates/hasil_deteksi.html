@@ -68,12 +68,30 @@
             </div>
         </section>
 
+        <!-- Peringatan Kemacetan -->
+        <section id="traffic-warning" class="mb-6">
+            {% if data['warning_message'] %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <strong class="font-bold">Peringatan!</strong>
+                <span class="block sm:inline">{{ data['warning_message'] }}</span>
+            </div>
+            {% endif %}
+        </section>
+
         <!-- Tombol Lanjut -->
         <div class="mt-8 text-center">
             <a href="{{ url_for('hasil_pengujian', filename=data['video_name'], car_count=data['car_count'], bike_count=data['bike_count']) }}"
                 class="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
                 Lihat Hasil Pengujian
             </a>
+        </div>
+
+        <!-- Tombol Simpan -->
+        <div class="mt-8 text-center">
+            <button id="simpan-button"
+                class="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                Simpan
+            </button>
         </div>
 
     </div>
@@ -84,5 +102,33 @@
     </footer>
 
 </body>
+
+<script>
+    document.getElementById('simpan-button').addEventListener('click', function () {
+        const data = {
+            filename: "{{ data['video_name'] }}",
+            car_count: "{{ data['car_count'] }}",
+            bike_count: "{{ data['bike_count'] }}"
+        };
+
+        fetch('{{ url_for("simpan_hasil") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+            .then(response => response.json())
+            .then(result => {
+                alert(result.message); // Tampilkan pop-up berhasil
+                window.location.href = "{{ url_for('log_deteksi_page') }}"; // Redirect ke log deteksi
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan saat menyimpan data.');
+            });
+    });
+
+</script>
 
 </html>
