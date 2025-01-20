@@ -77,14 +77,6 @@
             </div>
             {% endif %}
         </section>
-        
-        <!-- Tombol Kirim WhatsApp -->
-        <div class="mt-4 text-center">
-            <button id="whatsapp-button"
-                class="text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 font-medium rounded-full text-sm px-5 py-2.5 text-center me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                Kirim Notifikasi ke WhatsApp
-            </button>
-        </div>
 
         <!-- Tombol Lanjut -->
         <div class="mt-8 text-center">
@@ -137,31 +129,6 @@
             });
     });
 
-    document.getElementById('whatsapp-button').addEventListener('click', async function () {
-        const carCount = parseInt("{{ data['car_count'] }}");
-        const bikeCount = parseInt("{{ data['bike_count'] }}");
-        const totalCount = carCount + bikeCount;
-
-        try {
-            const response = await fetch('/detect_traffic', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ total_vehicles: totalCount }),
-            });
-
-            const result = await response.json();
-            if (result.warning_message) {
-                alert('Notifikasi WhatsApp telah dikirim melalui Twilio!');
-            } else {
-                alert('Tidak ada kemacetan terdeteksi.');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Terjadi kesalahan saat mengirim notifikasi.');
-        }
-    });
 </script>
 
 </html>

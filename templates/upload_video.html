@@ -170,6 +170,10 @@
                             </div>
                         </div>
                     </div>
+                <div id="trafficStatus" class="p-4 mt-4 rounded-lg shadow-md hidden">
+                    <h3 class="text-lg font-semibold" id="trafficStatusText">Status Lalu Lintas:</h3>
+                </div>
+
                 </div>
 
                 <a href="{{ url_for('hasil_deteksi', filename=filename) }}"
@@ -209,8 +213,75 @@
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('flex');
             document.getElementById(modalId).classList.add('hidden');
-        }
+        }    
     </script>
+
+<script>
+    let totalVehicles = 0; // Variabel untuk menyimpan total kendaraan
+    let resetInterval = 30000; // Waktu reset dalam milidetik (30 detik)
+
+    function updateTrafficStatus() {
+        fetch('/traffic_status')
+            .then(response => response.json())
+            .then(data => {
+                const trafficStatusDiv = document.getElementById('trafficStatus');
+                const trafficStatusText = document.getElementById('trafficStatusText');
+
+                // Perbarui total kendaraan
+                totalVehicles = data.total_vehicles;
+
+                if (totalVehicles > 0) {
+                    trafficStatusDiv.classList.remove('hidden');
+                    trafficStatusText.innerText = `Status Lalu Lintas: ${data.status} (${totalVehicles} kendaraan terdeteksi)`;
+
+                    // Tambahkan kelas warna berdasarkan status
+                    if (data.status === "Ramai") {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-red-100 text-red-700";
+                    } else if (data.status === "Lancar") {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-yellow-100 text-yellow-700";
+                    } else {
+                        trafficStatusDiv.className = "p-4 mt-4 rounded-lg shadow-md bg-green-100 text-green-700";
+                    }
+                } else {
+                    trafficStatusDiv.classList.add('hidden');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    // Fungsi untuk mereset hitungan kendaraan
+    function resetTrafficStatus() {
+        fetch('/reset_traffic', {
+            method: 'POST'
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.message);
+
+                const trafficStatusDiv = document.getElementById('trafficStatus');
+                const trafficStatusText = document.getElementById('trafficStatusText');
+
+                // Sembunyikan status lalu lintas
+                if (trafficStatusDiv) {
+                    trafficStatusDiv.classList.add('hidden');
+                }
+
+                // Kosongkan teks status lalu lintas
+                if (trafficStatusText) {
+                    trafficStatusText.innerText = '';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+
+    // Perbarui status lalu lintas setiap 2 detik
+    setInterval(updateTrafficStatus, 2000);
+
+    // Reset hitungan kendaraan setiap 1 menit
+    setInterval(resetTrafficStatus, 60000);
+
+</script>
 
 
 </body>

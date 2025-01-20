@@ -1,12 +1,10 @@
 import os
 import cv2
-import math
-from time import sleep
 from datetime import datetime
+import time
 from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
-from whatsapp_notification import send_whatsapp_notification
 import sqlite3
-import webbrowser
+from telegramNotification import send_telegram_message
 from werkzeug.utils import secure_filename
 from flask import jsonify
 from supabase_util import upload_video_file
@@ -80,6 +78,7 @@ def home():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_video():
     print("Sudah masuk di fungsi upload")
@@ -124,6 +123,9 @@ def upload_video():
             return redirect(url_for('upload_video'))
     return render_template('upload_video.html')
 
+last_check_time = time.time()
+vehicle_count_last_check = 0
+
 @app.route('/detect_stream/<path:fileurl>')
 def detect_stream(fileurl):
     try:
@@ -135,8 +137,7 @@ def detect_stream(fileurl):
 
 # Fungsi untuk mendeteksi dan melacak kendaraan
 def detect_and_stream(fileurl):
-    print("masuk ke detect stream")
-    global car_count, bike_count
+    global car_count, bike_count, last_check_time, vehicle_count_last_check
     car_count, bike_count = 0, 0
     cap = cv2.VideoCapture(fileurl, cv2.CAP_FFMPEG)
     
@@ -144,7 +145,6 @@ def detect_and_stream(fileurl):
         print("Error: Tidak dapat membuka video.")
         return
 
-    print("bisa dibuka")
     roi_top, roi_bottom = 200, 550
     pos_line = 120
     offset = 5
@@ -221,6 +221,24 @@ def detect_and_stream(fileurl):
         for kf in cars_kf + bikes_kf:
             kf.predict()
 
+        # Cek setiap 60 detik untuk kirim peringatan
+        current_time = time.time()
+        if current_time - last_check_time >= 60:
+            total_vehicle_count = car_count + bike_count
+            if total_vehicle_count > 50:
+                message = f"Peringatan! Kondisi Lalu Lintas di Jl. Basuki Rahmat, Ramai: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+            elif 30 <= total_vehicle_count <= 50:
+                message = f"Kondisi Lalu Lintas di Jl. Basuki Rahmat, Biasa: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+            else:
+                message = f"Kondisi Lalu Lintas di Jl. Basuki Rahmat, Sepi: {total_vehicle_count} kendaraan yang lewat dan terdeteksi."
+                send_telegram_message(message)
+
+            # Reset hitungan kendaraan dan waktu pemeriksaan
+            last_check_time = current_time
+            vehicle_count_last_check = total_vehicle_count
+
         # Visualisasi hasil deteksi
         cv2.putText(img, f"Mobil: {car_count}", (450, 650), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         cv2.putText(img, f"Motor: {bike_count}", (650, 650), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
@@ -232,6 +250,24 @@ def detect_and_stream(fileurl):
 
     cap.release()
 
+@app.route('/traffic_status', methods=['GET'])
+def traffic_status():
+    global car_count, bike_count
+    total_vehicles = car_count + bike_count
+    # Tentukan kondisi berdasarkan jumlah kendaraan
+    if total_vehicles > 50:  # ramai jika lebih dari 50 kendaraan
+        status = "Ramai"
+    elif 30 <= total_vehicles <= 50:  # lancar untuk 30-50 kendaraan
+        status = "Lancar"
+    else:  # sepi jika kurang dari 30 kendaraan
+        status = "Sepi"
+    
+    return jsonify({
+        "total_vehicles": total_vehicles,
+        "status": status
+    })
+
+
 @app.route('/hasil_deteksi/<filename>')
 def hasil_deteksi(filename):
     global car_count, bike_count
@@ -241,10 +277,12 @@ def hasil_deteksi(filename):
     total_count = car_count + bike_count
     warning_message = None
 
-    # Tentukan apakah muncul peringatan
+    # muncul peringatan di halaman Hasil deteksi
     if total_count > 100:
-        warning_message = "Lalu lintas sedang tinggi! Jumlah kendaraan lebih dari 100."
-
+        warning_message = "Kondisi Lalu lintas sedang tinggi! Jumlah kendaraan lebih dari 100 yang lewat di Jl. Basuki Rahmat" 
+    else:
+        warning_message = f"Kondisi Lalu lintas sedang normal, terdeteksi {total_count} kendaraan di Jl. Basuki Rahmat."
+       
     # Data untuk frontend
     data = {
         'car_count': car_count,
@@ -367,36 +405,6 @@ def delete_log(log_id):
     conn.close()
 
     return redirect(url_for('log_deteksi_page'))
-
-def send_whatsapp_notification(total_vehicles):
-    message = f"Peringatan: Lalu lintas tinggi! Total kendaraan: {total_vehicles}."
-    phone_number = "6281249304189"  # nomor tujuan
-    encoded_message = message.replace(" ", "%20")
-    url = f"https://api.whatsapp.com/send?phone={phone_number}&text={encoded_message}"
-
-    try:
-        webbrowser.open(url)  # Membuka URL di browser
-        print("Pesan WhatsApp berhasil dibuka di browser.")
-    except Exception as e:
-        print(f"Error membuka WhatsApp Web: {e}")
-
-
-@app.route('/detect_traffic', methods=['POST'])
-def detect_traffic():
-    total_vehicles = request.json.get('total_vehicles', 0)
-    warning_message = None
-
-    print(f"Total kendaraan diterima: {total_vehicles}")  # Debug log
-
-    if total_vehicles > 100:
-        warning_message = "Lalu lintas sedang tinggi! Jumlah kendaraan lebih dari 100."
-        print("Mengirim notifikasi WhatsApp...")  # Debug log
-        send_whatsapp_notification(total_vehicles)
-
-    return jsonify({
-        "total_vehicles": total_vehicles,
-        "warning_message": warning_message
-    })
 
 @app.route('/hasil_pengujian', methods=['GET', 'POST'])
 def hasil_pengujian():
